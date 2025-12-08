@@ -1,11 +1,243 @@
-<!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
+    <title>Pyodide Accéléromètre + Courbes (debug)</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+      }
+      #values {
+        font-size: 1.1em;
+        margin-top: 10px;
+      }
+      button {
+        padding: 10px 15px;
+        font-size: 1em;
+      }
+      #chart-container {
+        margin-top: 20px;
+        height: 300px;
+      }
+      #log {
+        margin-top: 20px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        font-size: 0.8em;
+        max-height: 200px;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+    </style>
   </head>
+
   <body>
-    <h1>Hello world</h1>
+    <h2>Pyodide + Accéléromètre (courbes)</h2>
+
+    <p>
+      <!-- IMPORTANT: on appelle window.requestAccel -->
+      <button onclick="window.requestAccel()">Activer les capteurs</button>
+    </p>
+
+    <div id="values">x=0.00, y=0.00, z=0.00, |a|=0.00</div>
+
+    <div id="chart-container">
+      <canvas
+        id="accelChart"
+        width="750"
+        height="375"
+        style="
+          display: block;
+          box-sizing: border-box;
+          height: 300px;
+          width: 600px;
+        "
+      ></canvas>
+    </div>
+
+    <pre id="log">
+Chargement de Pyodide...
+Pyodide chargé.
+Python prêt (boucle update installée).
+</pre
+    >
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script type="module">
+      // ----------------- utils log -----------------
+      function log(msg) {
+        console.log(msg);
+        const logEl = document.getElementById('log');
+        logEl.textContent += msg + '\n';
+      }
+
+      // ----------------------------------------------------
+      //  Glue JS Accéléromètre
+      // ----------------------------------------------------
+
+      window.lastAccel = { x: 0, y: 0, z: 0 };
+
+      function handleMotion(event) {
+        const a =
+          event.accelerationIncludingGravity || event.acceleration || {};
+        window.lastAccel = {
+          x: a.x || 0,
+          y: a.y || 0,
+          z: a.z || 0,
+        };
+      }
+
+      // IMPORTANT: on met la fonction sur window
+      window.requestAccel = async function () {
+        log('requestAccel() appelée');
+
+        if (!('DeviceMotionEvent' in window)) {
+          log("DeviceMotionEvent n'est pas disponible dans ce navigateur.");
+          alert('DeviceMotionEvent non supporté sur ce navigateur / appareil.');
+          return;
+        }
+
+        log('DeviceMotionEvent est disponible.');
+
+        try {
+          // Cas iOS: DeviceMotionEvent.requestPermission existe
+          if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            log('DeviceMotionEvent.requestPermission est disponible (iOS).');
+            const res = await DeviceMotionEvent.requestPermission();
+            log('Résultat requestPermission: ' + res);
+            if (res === 'granted') {
+              window.addEventListener('devicemotion', handleMotion);
+              log('Écouteur devicemotion ajouté (iOS).');
+            } else {
+              alert('Permission capteurs refusée : ' + res);
+            }
+          } else {
+            // Cas Android / autres
+            log(
+              "Pas de requestPermission, on ajoute directement l'écouteur devicemotion."
+            );
+            window.addEventListener('devicemotion', handleMotion);
+            log('Écouteur devicemotion ajouté (non-iOS).');
+          }
+        } catch (e) {
+          console.error(e);
+          log('Erreur dans requestAccel: ' + e);
+          alert("Erreur en demandant l'accès aux capteurs (voir console).");
+        }
+      };
+
+      window.getAccelXYZ = function () {
+        const a = window.lastAccel || { x: 0, y: 0, z: 0 };
+        return [a.x, a.y, a.z];
+      };
+
+      // ----------------------------------------------------
+      //  Chart.js : courbes X, Y, Z
+      // ----------------------------------------------------
+
+      const ctx = document.getElementById('accelChart').getContext('2d');
+      const maxPoints = 200;
+
+      const accelChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'X',
+              data: [],
+              borderWidth: 1,
+              tension: 0.2,
+              pointRadius: 0,
+            },
+            {
+              label: 'Y',
+              data: [],
+              borderWidth: 1,
+              tension: 0.2,
+              pointRadius: 0,
+            },
+            {
+              label: 'Z',
+              data: [],
+              borderWidth: 1,
+              tension: 0.2,
+              pointRadius: 0,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          animation: false,
+          scales: {
+            x: { display: false },
+            y: { title: { display: true, text: 'Acceleration (m/s²)' } },
+          },
+        },
+      });
+
+      // appelée depuis Python
+      window.addAccelPoint = function (x, y, z) {
+        const labels = accelChart.data.labels;
+        const datasets = accelChart.data.datasets;
+
+        labels.push('');
+        datasets[0].data.push(x);
+        datasets[1].data.push(y);
+        datasets[2].data.push(z);
+
+        if (labels.length > maxPoints) {
+          labels.shift();
+          datasets.forEach((d) => d.data.shift());
+        }
+        accelChart.update('none');
+      };
+
+      // ----------------------------------------------------
+      //  Pyodide
+      // ----------------------------------------------------
+
+      import { loadPyodide } from 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.mjs';
+
+      log('Chargement de Pyodide...');
+
+      const pyodide = await loadPyodide();
+      log('Pyodide chargé.');
+
+      await pyodide.runPythonAsync(`
+from js import window, document
+import math
+from pyodide.ffi import create_proxy
+
+class AccelSensor:
+    def get_xyz(self):
+        xyz = window.getAccelXYZ()
+        x = float(xyz[0] or 0.0)
+        y = float(xyz[1] or 0.0)
+        z = float(xyz[2] or 0.0)
+        return x, y, z
+
+    def get_magnitude(self):
+        x, y, z = self.get_xyz()
+        return math.sqrt(x*x + y*y + z*z)
+
+accel = AccelSensor()
+
+def update(*args, **kwargs):
+    x, y, z = accel.get_xyz()
+    m = accel.get_magnitude()
+    document.getElementById("values").innerText = (
+        f"x={x:.2f}, y={y:.2f}, z={z:.2f}, |a|={m:.2f}"
+    )
+    window.addAccelPoint(x, y, z)
+
+update_proxy = create_proxy(update)
+window.setInterval(update_proxy, 200)
+`);
+      log('Python prêt (boucle update installée).');
+    </script>
   </body>
 </html>
