@@ -177,13 +177,17 @@ class AccelSensor(Smartphone):
     
     def get_state(self, x, y, z):
         if y>7:
-             self.smartfone.to_up
+            self.smartfone.to_up()
+            return self.smartfone.state.name
         if y<-7:
-           self.smartfone.to_down
+           self.smartfone.to_down()
+           return self.smartfone.state.name
         if x>7:
-           self.smartfone.to_left
+           self.smartfone.to_left()
+           return self.smartfone.state.name
         if x<-7:
-            self.smartfone.to_right
+            self.smartfone.to_right()
+            return self.smartfone.state.name
 
 
 accel = AccelSensor()
