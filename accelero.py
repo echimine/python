@@ -160,6 +160,10 @@ class Smartphone:
         self.state.to_right()
 
 class AccelSensor(Smartphone):
+    def __init__(self):
+        self.smartfone = Smartphone()
+        pass
+
     def get_xyz(self):
         xyz = window.getAccelXYZ()
         x = float(xyz[0] or 0.0)
@@ -173,17 +177,16 @@ class AccelSensor(Smartphone):
     
     def get_state(self, x, y, z):
         if y>7:
-             smartphone.to_up
+             self.smartfone.to_up
         if y<-7:
-           smartphone.to_down
+           self.smartfone.to_down
         if x>7:
-           smartphone.to_left
+           self.smartfone.to_left
         if x<-7:
-            smartphone.to_right
+            self.smartfone.to_right
 
 
 accel = AccelSensor()
-smartphone = Smartphone()
 def update(*args, **kwargs):
     
     x, y, z = accel.get_xyz()
