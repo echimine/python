@@ -1,9 +1,3 @@
-
-import math
-window = None
-document= None
-create_proxy = None
-
 from abc import ABC, abstractmethod
 
 class SmartphoneState(ABC):
@@ -159,40 +153,22 @@ class Smartphone:
     def to_right(self):
         self.state.to_right()
 
-class AccelSensor(Smartphone):
-    def get_xyz(self):
-        xyz = window.getAccelXYZ()
-        x = float(xyz[0] or 0.0)
-        y = float(xyz[1] or 0.0)
-        z = float(xyz[2] or 0.0)
-        return x, y, z
-
-    def get_magnitude(self):
-        x, y, z = self.get_xyz()
-        return math.sqrt(x*x + y*y + z*z)
-    
-    def get_state(self, x, y, z):
-        if y>7:
-             smartphone.to_up
-        if y<-7:
-           smartphone.to_down
-        if x>7:
-           smartphone.to_left
-        if x<-7:
-            smartphone.to_right
 
 
-accel = AccelSensor()
-smartphone = Smartphone()
-def update(*args, **kwargs):
-    
-    x, y, z = accel.get_xyz()
-    result = accel.get_state(x=x,y=y,z=z)
-    m = accel.get_magnitude()
-    document.getElementById("values").innerText = (
-        f"x={x:.2f}, y={y:.2f}, z={z:.2f}, |a|={m:.2f}, state={result}"
-    )
-    window.addAccelPoint(x, y, z)
+if __name__ == "__main__":
+    phone = Smartphone()
 
-update_proxy = create_proxy(update)
-window.setInterval(update_proxy, 200)
+    print("\n--- UP -> LEFT ---")
+    phone.to_left()
+
+    print("\n--- LEFT -> UP ---")
+    phone.to_up()
+
+    print("\n--- UP -> RIGHT ---")
+    phone.to_right()
+
+    print("\n--- RIGHT -> DOWN ---")
+    phone.to_down()
+
+    print("\n--- DOWN -> UP (invalide) ---")
+    phone.to_up()
