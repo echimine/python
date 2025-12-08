@@ -162,7 +162,6 @@ class Smartphone:
 class AccelSensor(Smartphone):
     def __init__(self):
         self.smartfone = Smartphone()
-        pass
 
     def get_xyz(self):
         xyz = window.getAccelXYZ()
@@ -192,7 +191,6 @@ class AccelSensor(Smartphone):
 
 accel = AccelSensor()
 def update(*args, **kwargs):
-    
     x, y, z = accel.get_xyz()
     result = accel.get_state(x=x,y=y,z=z)
     m = accel.get_magnitude()
