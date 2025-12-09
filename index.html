@@ -396,6 +396,7 @@ class AccelSensor(Smartphone):
         if x<-7:
             self.smartfone.to_right()
             return self.smartfone.state.name
+        return "center"
 
 accel = AccelSensor()
 def update(*args, **kwargs):

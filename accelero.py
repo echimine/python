@@ -123,7 +123,6 @@ class DownState(SmartphoneState):
 
 
 class Smartphone:
-
     def __init__(self, callback=None):
         self.update_ui = callback or (lambda state_name: None)
         self.state: SmartphoneState = UpState(self)
@@ -144,8 +143,6 @@ class Smartphone:
         self.update_ui(self.state.name)
 
     # Récupération des données d'accélération
-    
-
     # API publique : on déclenche des événements, pas des états bruts
     def to_up(self):
         self.state.to_up()
