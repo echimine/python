@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import json
@@ -13,7 +14,7 @@ import requests
 # =========================
 
 LLAMA_SERVER_URL = "http://localhost:8080/v1/chat/completions"
-MODEL_NAME = "Qwen_Qwen3-0.6B-Q8_0"  # adapte selon ton modèle local
+MODEL_NAME = "Ministral-3-3B-Instruct-2512-Q4_K_M"  # adapte selon ton modèle local
 
 
 def send_llama_chat(
@@ -524,6 +525,7 @@ Tu réponds STRICTEMENT en JSON, SANS texte autour, au format:
                 self.current_skill_name = skill_name
         else:
             # pas en attente de slot -> simple routing
+            print("MEssage utilisateur reçu:", user_message)
             skill_name = self.classify_intent(user_message)
             self.current_skill_name = skill_name
             print(f"[DEBUG] Nouveau skill sélectionné: {skill_name}")
@@ -609,4 +611,3 @@ Tu réponds STRICTEMENT en JSON, SANS texte autour, au format:
         self.awaiting_slot_answer = False
         self.last_asked_slot_name = None
         return "Je suis un peu perdu, peux-tu reformuler ?"
-

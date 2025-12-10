@@ -17,7 +17,23 @@ def music_on_ready(values: Dict[str, str]) -> str:
         pass
     
     return f"la musique {name} est en cours de lecture"
-    
+
+def write_txt_file_on_ready(values: Dict[str, str]) -> str:
+    file = values.get("name", "un fichier")
+    content = values.get("content", "")
+    with open(f"{file}.txt", "w") as f:
+        f.write(content)
+    return f"Le contenu a été écrit dans le fichier {file}."
+
+
+def read_txt_file_on_ready(values: Dict[str, str]) -> str:
+    file = values.get("file_path", "un fichier")
+    try:
+        with open(file, "r") as f:
+            content = f.read()
+        return f"Contenu du fichier {file}:\n{content}"
+    except FileNotFoundError:
+        return f"Le fichier {file} n'existe pas."
 
 
 def weather_on_ready(values: Dict[str, str]) -> Dict[str, Any]:
@@ -76,6 +92,31 @@ exemple de phrase : "je veux ecouter get_back"
         on_ready=music_on_ready,
     )
 
+    write_file_slots = [
+        Slot(
+            name="name",
+            description="le nom du fichier que je veux créer",
+            question="Quelle est le nom du fichier",
+        ),
+        Slot(
+            name="content",
+            description="le contenu du fichier",
+            question="Quelle est le contenu du fichier",
+        )
+    ]
+
+    write_file_skill = Skill(
+        name="file",
+        description="crer le fichier txt avec le name et le content",
+        slots=write_file_slots,
+        final_answer_system_prompt="""
+Tu es un assistant création de fichier.
+Tu reçois des données structurées, tu vas recevoir le nom et le contenue du fichier.
+tu devras alors créer ce fichier avec l'extension .txt, tu vas récupérer le nom du fichier et le contenu"
+""",
+        on_ready=write_txt_file_on_ready,
+    )
+
     # Skill météo
     weather_slots = [
         Slot(
@@ -100,6 +141,40 @@ Tu reçois des données structurées (ville, date, prévisions, etc.)
 et tu dois formuler une réponse météo en français, concise et naturelle.
 """,
         on_ready=weather_on_ready,
+    )
+
+
+    file_writer = Skill(
+        name="write_txt_file",
+        description="Ecrire du contenu dans un fichier texte",
+        slots=[
+            Slot(
+                name="file_path",
+                description="le chemin du fichier texte",
+                question="Quel est le nom du fichier texte où écrire ?",
+            ),
+            Slot(
+                name="content",
+                description="le contenu du fichier texte",
+                question="Quel est le contenu du fichier texte ?",
+            )
+        ],
+        final_answer_system_prompt="""Tu es un assistant qui permet d'écrire du contenu dans un fichier texte. Tu dois créer ou écraser le fichier texte spécifié avec le contenu fourni.""",
+        on_ready=write_txt_file_on_ready,
+    )
+
+    file_reader = Skill(
+        name="read_txt_file",
+        description="Lire du contenu dans un fichier texte",
+        slots=[
+            Slot(
+                name="file_path",
+                description="le chemin du fichier texte",
+                question="Quel est le nom du fichier texte à lire ?",
+            ),
+        ],
+        final_answer_system_prompt="""Tu es un assistant qui permet de lire du contenu dans un fichier texte. Tu dois lire le fichier texte spécifié et retourner son contenu.""",
+        on_ready=read_txt_file_on_ready,
     )
 
     # Skill réservation de restaurant
@@ -150,7 +225,7 @@ Réponds naturellement en français, de façon sympathique et concise.
         on_ready=None,
     )
 
-    return MultiSkillAgent([weather_skill, booking_skill, smalltalk_skill, music_skill])
+    return MultiSkillAgent([weather_skill, booking_skill, smalltalk_skill, music_skill, write_file_skill, file_writer, file_reader])
 
 
 # =========================
