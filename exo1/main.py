@@ -1,12 +1,12 @@
-from movementState import (
-    MouvementState,
-    StaticState,
-)
+# from movementState import (
+#     MouvementState,
+#     StaticState,
+# )
 
-from playingState import (
-    PlaybleState,
-    Playble,
-)
+# from playingState import (
+#     PlaybleState,
+#     Playble,
+# )
 
 from positionnedState import (
     PositionnedState,
@@ -15,10 +15,10 @@ from positionnedState import (
 from abc import ABC, abstractmethod
 
 
-class HeroState(ABC,):
-    def __init__(self, heroState,):
-        self.heroState = heroState
-        
+class HeroState(ABC):
+
+    def __init__(self, hero):
+        self.hero = hero
 
     def on_enter(self, from_state: "HeroState | None"):
         print(f"[ENTER] {self.name}"
@@ -32,83 +32,103 @@ class HeroState(ABC,):
     def name(self) -> str:
         pass
 
+     # utilitaire
+    def _transition(self, new_state_cls: type["HeroState"], ):
+        self.hero.set_state(new_state_cls)
 
-    @abstractmethod
-    def isPlayingGame(self):
+    def to_movement(self):
         pass
 
-    @abstractmethod
-    def isNotPlayingGame(self):
+    def to_stationary(self):
         pass
+
+    def to_finished(self):
+        pass
+
+class MovingHeroState(HeroState):
+    @property
+    def name(self) -> str:
+        return "MOVING"
     
-    # utilitaire
-    def _transition(self, new_state_cls: type["PositionnedState"], ):
-        self.heroState.set_positionned_state(new_state_cls)
+
+    def on_enter(self, from_state: "HeroState | None"):
+        print(f"[ENTER] {self.name}"
+              + (f" (from {from_state.name})" if from_state else ""))
+
+    def on_exit(self, to_state: "HeroState"):
+        print(f"[EXIT]  {self.name} -> {to_state.name}")
+    
 
 
-class IsPlayingGame(HeroState):
+    def to_movement(self):
+        # déjà en MOVING
+        print("Déjà en MOVING, aucune transition.")
+
+    def to_stationary(self):
+        self._transition(StationaryHeroState)
+
+    def to_finished(self):
+        self._transition(FinishedHeroState)
+
+
+class StationaryHeroState(HeroState):
+
     @property
     def name(self) -> str:
-        return "IsPlayingGame"
-        
-    def isPlayingGame(self):
-        print("le joueur est déjà en Playble")
+        return "STATIONARY"
+    
+    def to_stationary(self):
+        # déjà en STATIONARY
+        print("Déjà en STATIONARY, aucune transition.")
 
-    def isNotPlayingGame(self):
-        print("pas possible")
+    def to_movement(self):
+        self._transition(MovingHeroState)
 
-class IsNotPlayingGame(HeroState):
+    def to_finished(self):
+        self._transition(FinishedHeroState)
+
+class FinishedHeroState(HeroState):
+
     @property
     def name(self) -> str:
-        return "IsNotPlayingGame"
-        
-    def isPlayingGame(self):
-        print("pas possible de transiter vers playing")
+        return "FINISHED"
+    
+    def to_finished(self):
+        # déjà en FINISHED
+        print("Déjà en FINISHED, aucune transition.")
 
-    def isNotPlayingGame(self):
-        print("cannot played because end game")
+    def to_movement(self):
+         print("Déjà en FINISHED, aucune transition.")
 
-
-
-
-
-
-
-
+    def to_stationary(self):
+         print("Déjà en FINISHED, aucune transition.")
 
 
 
 class Hero:
-    def __init__(self):
-        self.hero_state: HeroState
-        self.moving_state: MouvementState = StaticState(self)
-        self.playble_state: PlaybleState = Playble(self)
-        self.positionned_state : PositionnedState = BottomLeft(self)
+    def __init__(self, game_widget):
+        self.game_widget = game_widget
+        self.hero_state:HeroState = StationaryHeroState(self)
+        self.hero_state.on_enter(None)
+        self.hero_position_state:PositionnedState = BottomLeft(self)
 
-    def set_moving_state(self, new_state_cls: type["MouvementState"]):
-        old_state = self.moving_state
+    # Modifier set_state ou créer une nouvelle méthode, pour gérer les 3 types d'état
+    def set_state(self, new_state_cls, action=None):
+        old_state = self.hero_state
         new_state = new_state_cls(self)
+        # Hooks de sortie / entrée
         old_state.on_exit(new_state)
         new_state.on_enter(old_state)
-        self.moving_state = new_state
-    def set_playing_state(self, new_state_cls: type["PlaybleState"]):
-        old_state = self.playble_state
-        new_state = new_state_cls(self)
-        old_state.on_exit(new_state)
-        new_state.on_enter(old_state)
-        self.playble_state = new_state
+        self.hero_state = new_state
 
-    def set_positionned_state(self, new_state_cls: type["PositionnedState"]):
-        old_state = self.positionned_state
-        new_state = new_state_cls(self)
-        old_state.on_exit(new_state)
-        new_state.on_enter(old_state)
-        self.positionned_state = new_state
+    def set_position(self, new_state_cls):
+        old_state = self.hero_position_state
+        
 
 
-hero = Hero()
-hero.moving_state.move()
-hero.moving_state.static()
-hero.positionned_state.topLeft()
-hero.positionned_state.bottomRight()
-hero.playble_state.notPlayble()
+# hero = Hero()
+# hero.moving_state.move()
+# hero.moving_state.static()
+# hero.positionned_state.topLeft()
+# hero.positionned_state.bottomRight()
+# hero.playble_state.notPlayble()

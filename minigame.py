@@ -12,6 +12,8 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QMessageBox,
 )
+ 
+from exo1.main import Hero, MovingHeroState, StationaryHeroState, FinishedHeroState
 
 
 class GameWidget(QWidget):
@@ -33,9 +35,11 @@ class GameWidget(QWidget):
         self.speed = 200.0  # pixels par seconde
         self.vx = 0.0
         self.vy = 0.0
-        self.moving = False
         self.step_duration_ms = 1000  # 1 seconde par défaut
         self.elapsed_ms = 0
+
+        # initialisation de la machine à état
+        self.hero = Hero(self)
 
         # Timer de mise à jour
         self.dt_ms = 16  # ~60 FPS
@@ -55,8 +59,8 @@ class GameWidget(QWidget):
     # --- Gestion clavier ---
 
     def keyPressEvent(self, event):
-        if self.moving:
-            # On ignore les touches tant qu'un déplacement est en cours
+        # on n'accepte les touches que si il est en mouvement
+        if not isinstance(self.hero.hero_state, StationaryHeroState) :
             return
 
         key = event.key()
@@ -74,13 +78,13 @@ class GameWidget(QWidget):
             return
 
         # Lancer le déplacement
-        self.moving = True
+        self.hero.hero_state.to_movement()
         self.elapsed_ms = 0
 
     # --- Logique du jeu ---
 
     def update_game(self):
-        if self.moving:
+        if not isinstance(self.hero.hero_state, StationaryHeroState):
             dt_s = self.dt_ms / 1000.0
             self.elapsed_ms += self.dt_ms
 
@@ -96,10 +100,10 @@ class GameWidget(QWidget):
 
             # Fin de l'impulsion
             if self.elapsed_ms >= self.step_duration_ms:
-                self.moving = False
                 self.vx = 0.0
                 self.vy = 0.0
                 self.elapsed_ms = 0
+                self.hero.hero_state.to_stationary()
 
         # Met à jour la couleur en fonction de la zone
         self.update_player_color()
