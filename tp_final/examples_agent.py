@@ -4,19 +4,34 @@
 # =========================
 import pygame
 from typing import Any, Dict
-
 from agent import MultiSkillAgent, Skill, Slot
+
+from pathlib import Path
+from typing import Dict
+import pygame
+import time
+
+BASE_DIR = Path(__file__).resolve().parent
+MUSIC_PATH = BASE_DIR / "music" / "get_back.wav"
 
 def music_on_ready(values: Dict[str, str]) -> str:
     name = values.get("music", "une musique inconnue")
-   
-    pygame.init()
-    pygame.mixer.music.load("C:\\Users\\eliott\\OneDrive\\Documents\\python\\tp_final\\music\\get_back.wav")
+
+    if not MUSIC_PATH.exists():
+        return f"Erreur : fichier audio introuvable ({MUSIC_PATH})"
+
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+
+    pygame.mixer.music.load(str(MUSIC_PATH))
     pygame.mixer.music.play()
+
+    # Attente non bloquante
     while pygame.mixer.music.get_busy():
-        pass
-    
-    return f"la musique {name} est en cours de lecture"
+        time.sleep(0.1)
+
+    return f"La musique {name} est en cours de lecture"
+
 
 def write_txt_file_on_ready(values: Dict[str, str]) -> str:
     file = values.get("name", "un fichier")
