@@ -4,15 +4,285 @@
 # =========================
 import pygame
 from typing import Any, Dict
-from agent import MultiSkillAgent, Skill, Slot
+from agent import MultiSkillAgent, Skill, Slot, send_llama_chat, parse_json_loose
 
 from pathlib import Path
 from typing import Dict
 import pygame
 import time
+import icalendar
+import uuid
+import icalendar
+import uuid
+import imaplib
+import email
+from email.header import decode_header
+import os
+from dotenv import load_dotenv
+from icalendar import Calendar, Event
+from datetime import datetime
+import dateparser
+import uuid
+
+load_dotenv()
+
+uuid = uuid.uuid4()
 
 BASE_DIR = Path(__file__).resolve().parent
 MUSIC_PATH = BASE_DIR / "music" / "get_back.wav"
+
+
+def get_safe_filename(title: str) -> str:
+    """Génère un nom de fichier sûr à partir d'un titre."""
+    safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
+    return f"{safe_title}.ics"
+
+def get_event_filepath(title: str) -> Path:
+    """Retourne le chemin complet du fichier événement."""
+    filename = get_safe_filename(title)
+    return BASE_DIR / filename
+
+def agenda_on_ready(values: Dict[str, str]) -> str:
+    title = values.get("titre", "un événement")
+    start_str = values.get("date de début", "demain 10h")
+    end_str = values.get("date de fin", "demain 11h")
+
+    dt_start = dateparser.parse(start_str)
+    dt_end = dateparser.parse(end_str)
+
+    if not dt_start:
+        dt_start = datetime.now()
+    if not dt_end:
+        dt_end = datetime.now()
+
+    cal = Calendar()
+    cal.add("prodid", "-//Projet IA Locale//Calendar Assistant")
+    cal.add("version", "2.0")
+
+    event = Event()
+    event.add("uid", f"{uuid.uuid4()}@ia")
+    event.add("summary", title)
+    event.add("dtstart", dt_start)
+    event.add("dtend", dt_end)
+    event.add("description", f"Événement : {title}")
+
+    cal.add_component(event)
+
+    filename = get_safe_filename(title)
+    
+    with open(filename, "wb") as f:
+        f.write(cal.to_ical())
+
+    return (
+        f"L'événement '{title}' a été créé dans le fichier {filename} "
+        f"(du {dt_start} au {dt_end})."
+    )
+
+def delete_agenda_on_ready(values: Dict[str, str]) -> str:
+    title = values.get("titre", "un événement")
+    filepath = get_event_filepath(title)
+    
+    if filepath.exists():
+        filepath.unlink()
+        return f"L'événement '{title}' (fichier {filepath.name}) a été supprimé."
+    else:
+        return f"Je n'ai pas trouvé d'événement intitulé '{title}' (fichier {filepath.name} inexistant)."
+
+def modify_agenda_on_ready(values: Dict[str, str]) -> str:
+    title = values.get("titre", "")
+    instructions = values.get("instructions", "")
+    
+    filepath = get_event_filepath(title)
+    
+    if not filepath.exists():
+        return f"Je ne trouve pas l'événement '{title}' à modifier."
+        
+    with open(filepath, "rb") as f:
+        cal = Calendar.from_ical(f.read())
+        
+    event_component = None
+    for component in cal.walk():
+        if component.name == "VEVENT":
+            event_component = component
+            break
+            
+    if not event_component:
+        return f"Le fichier {filepath.name} ne contient pas d'événement valide."
+        
+    current_summary = str(event_component.get("summary"))
+    current_dtstart = event_component.get("dtstart").dt
+    current_dtend = event_component.get("dtend").dt
+    
+    system_prompt = f"""
+Tu es un assistant expert en modification d'agenda.
+Voici l'événement actuel :
+- Titre : "{current_summary}"
+- Début : {current_dtstart}
+- Fin : {current_dtend}
+
+L'utilisateur veut : "{instructions}"
+
+Tu dois retourner les NOUVELLES valeurs. Si une valeur ne change pas, renvoie la même.
+Format JSON attendu :
+{{
+  "new_title": "...",
+  "new_start": "YYYY-MM-DD HH:MM:SS",
+  "new_end": "YYYY-MM-DD HH:MM:SS"
+}}
+"""
+    response_json = send_llama_chat(
+        system_prompt=system_prompt,
+        user_content="Applique les changements demandés.",
+        temperature=0.0
+    )
+    
+    data = parse_json_loose(response_json)
+    
+    new_title = data.get("new_title", current_summary)
+    new_start_str = data.get("new_start")
+    new_end_str = data.get("new_end")
+    
+    # Parsing dates
+    new_dtstart = dateparser.parse(new_start_str) if new_start_str else current_dtstart
+    new_dtend = dateparser.parse(new_end_str) if new_end_str else current_dtend
+    
+    if not new_dtstart: new_dtstart = current_dtstart
+    if not new_dtend: new_dtend = current_dtend
+    
+    # Mise à jour
+    # Si le titre change, on supprime l'ancien fichier et on en crée un nouveau
+    if new_title != current_summary:
+        filepath.unlink()
+        new_filepath = get_event_filepath(new_title)
+    else:
+        new_filepath = filepath
+        
+    # Recréation propre pour éviter les artefacts
+    new_cal = Calendar()
+    new_cal.add("prodid", "-//Projet IA Locale//Calendar Assistant")
+    new_cal.add("version", "2.0")
+    
+    new_event = Event()
+    new_event.add("uid", f"{uuid.uuid4()}@ia")
+    new_event.add("summary", new_title)
+    new_event.add("dtstart", new_dtstart)
+    new_event.add("dtend", new_dtend)
+    new_event.add("description", f"Événement : {new_title}")
+    
+    new_cal.add_component(new_event)
+    
+    with open(new_filepath, "wb") as f:
+        f.write(new_cal.to_ical())
+        
+    return f"L'événement a été modifié.\nNouveau titre : {new_title}\nDébut : {new_dtstart}\nFin : {new_dtend}"
+
+
+    with open(new_filepath, "wb") as f:
+        f.write(new_cal.to_ical())
+        
+    return f"L'événement a été modifié.\nNouveau titre : {new_title}\nDébut : {new_dtstart}\nFin : {new_dtend}"
+
+def fetch_recent_emails(username, password, limit=5):
+    """Récupère les N derniers emails via IMAP."""
+    try:
+        # Connexion au serveur IMAP de Gmail
+        mail = imaplib.IMAP4_SSL("imap.gmail.com")
+        mail.login(username, password)
+        mail.select("inbox")
+
+        # Recherche des derniers emails
+        status, messages = mail.search(None, "ALL")
+        if status != "OK":
+            return []
+
+        email_ids = messages[0].split()
+        latest_email_ids = email_ids[-limit:]
+        
+        emails_data = []
+
+        for e_id in reversed(latest_email_ids):
+            status, msg_data = mail.fetch(e_id, "(RFC822)")
+            if status != "OK":
+                continue
+                
+            for response_part in msg_data:
+                if isinstance(response_part, tuple):
+                    msg = email.message_from_bytes(response_part[1])
+                    
+                    # Décodage du sujet
+                    subject, encoding = decode_header(msg["Subject"])[0]
+                    if isinstance(subject, bytes):
+                        subject = subject.decode(encoding if encoding else "utf-8")
+                        
+                    # Décodage de l'expéditeur
+                    sender = msg.get("From")
+                    
+                    # Récupération du corps (texte brut préféré)
+                    body = ""
+                    if msg.is_multipart():
+                        for part in msg.walk():
+                            content_type = part.get_content_type()
+                            content_disposition = str(part.get("Content-Disposition"))
+                            
+                            if "attachment" not in content_disposition:
+                                if content_type == "text/plain":
+                                    body = part.get_payload(decode=True).decode()
+                                    break # On préfère le text/plain
+                                elif content_type == "text/html" and not body:
+                                    body = part.get_payload(decode=True).decode()
+                    else:
+                        body = msg.get_payload(decode=True).decode()
+                        
+                    emails_data.append({
+                        "sender": sender,
+                        "subject": subject,
+                        "body": body[:500] + "..." if len(body) > 500 else body # Tronquer pour le LLM
+                    })
+                    
+        mail.close()
+        mail.logout()
+        return emails_data
+        
+    except Exception as e:
+        print(f"Erreur IMAP: {e}")
+        return []
+
+def email_summary_on_ready(values: Dict[str, str]) -> str:
+    count_str = values.get("count", "5")
+    try:
+        limit = int(count_str)
+    except ValueError:
+        limit = 5
+        
+    username = os.environ.get("GMAIL_EMAIL")
+    password = os.environ.get("GMAIL_PASSWORD")
+    
+    if not username or not password:
+        return "Je ne peux pas récupérer vos emails car les variables d'environnement GMAIL_EMAIL et GMAIL_PASSWORD ne sont pas définies."
+        
+    emails = fetch_recent_emails(username, password, limit)
+    
+    if not emails:
+        return "Je n'ai trouvé aucun email récent ou je n'ai pas pu me connecter."
+        
+    # Construction du prompt pour le LLM
+    emails_text = ""
+    for i, em in enumerate(emails, 1):
+        emails_text += f"Email {i}:\nDe: {em['sender']}\nSujet: {em['subject']}\nCorps: {em['body']}\n\n"
+        
+    system_prompt = """
+Tu es un assistant personnel efficace.
+Tu reçois une liste d'emails récents.
+Tu dois en faire une synthèse claire et concise en français.
+Pour chaque email important, résume en une phrase. Ignore les publicités évidentes si possible.
+"""
+    summary = send_llama_chat(
+        system_prompt=system_prompt,
+        user_content=f"Voici mes derniers emails :\n{emails_text}",
+        temperature=0.7
+    )
+    
+    return f"Voici la synthèse de vos {len(emails)} derniers emails :\n\n{summary}"
 
 def music_on_ready(values: Dict[str, str]) -> str:
     name = values.get("music", "une musique inconnue")
@@ -86,6 +356,103 @@ def booking_on_ready(values: Dict[str, str]) -> str:
 # =========================
 
 def build_agent() -> MultiSkillAgent:
+
+    agenda_slots = [
+        Slot(
+            name="date de début",
+            description="date de début de l'événement",
+            question="quelle est la date du début de l'événement",
+        ),
+
+        Slot(
+            name="date de fin",
+            description="date de fin de l'événement",
+            question="quelle est la date de fin de l'événement",
+        ),
+
+        Slot(
+            name="titre",
+            description="le titre de l'événement",
+            question="quel est le titre de l'événement",
+        )
+
+    ]
+
+    agenda_skills = Skill(
+        name="agenda",
+        description="création d'un événement dans l'agenda",
+        slots=agenda_slots,
+        final_answer_system_prompt="""
+Tu es un assistant qui créer un fichier .ics pour écrire, modifier ou supprimer des évenements.
+Tu reçois des données structurées, tu receveras :
+- une date de début,
+- une date de fin d'évenement,
+- un titre d'évenement.
+exemple de phrase : "ajoute un rendez-vous pour le 15 juin 2024 de 14h à 15h intitulé réunion projet"
+""",
+        on_ready=agenda_on_ready,
+    )
+
+    delete_agenda_slots = [
+        Slot(
+            name="titre",
+            description="le titre de l'événement à supprimer",
+            question="quel est le titre de l'événement à supprimer",
+        )
+    ]
+
+    delete_agenda_skill = Skill(
+        name="delete_agenda",
+        description="supprimer un événement de l'agenda",
+        slots=delete_agenda_slots,
+        final_answer_system_prompt="""
+Tu es un assistant qui supprime des événements.
+Tu as reçu le titre de l'événement à supprimer.
+""",
+        on_ready=delete_agenda_on_ready,
+    )
+
+    modify_agenda_slots = [
+        Slot(
+            name="titre",
+            description="le titre de l'événement à modifier",
+            question="quel est le titre de l'événement à modifier",
+        ),
+        Slot(
+            name="instructions",
+            description="les instructions de modification (ex: changer la date, changer le titre)",
+            question="quelles sont les modifications à apporter ?",
+        )
+    ]
+
+    modify_agenda_skill = Skill(
+        name="modify_agenda",
+        description="modifier un événement de l'agenda existant",
+        slots=modify_agenda_slots,
+        final_answer_system_prompt="""
+Tu es un assistant qui modifie des événements.
+Tu as reçu le titre et les instructions.
+""",
+        on_ready=modify_agenda_on_ready,
+    )
+
+    email_summary_slots = [
+        Slot(
+            name="count",
+            description="le nombre d'emails à résumer (par défaut 5)",
+            question="Combien d'emails voulez-vous que je résume ?",
+        )
+    ]
+
+    email_summary_skill = Skill(
+        name="email_summary",
+        description="faire une synthèse des derniers emails reçus",
+        slots=email_summary_slots,
+        final_answer_system_prompt="""
+Tu es un assistant qui résume les emails.
+""",
+        on_ready=email_summary_on_ready,
+    )
 
     music_slots = [
         Slot(
@@ -228,7 +595,6 @@ répondre en français en récapitulant clairement la réservation.
         on_ready=booking_on_ready,
     )
 
-    # Skill smalltalk (pas de slots)
     smalltalk_skill = Skill(
         name="smalltalk",
         description="conversation générale, questions diverses, discuter de tout et de rien",
@@ -240,7 +606,19 @@ Réponds naturellement en français, de façon sympathique et concise.
         on_ready=None,
     )
 
-    return MultiSkillAgent([weather_skill, booking_skill, smalltalk_skill, music_skill, write_file_skill, file_writer, file_reader])
+    return MultiSkillAgent([
+        weather_skill, 
+        booking_skill, 
+        smalltalk_skill, 
+        music_skill, 
+        write_file_skill, 
+        file_writer, 
+        file_reader, 
+        agenda_skills,
+        delete_agenda_skill,
+        modify_agenda_skill,
+        email_summary_skill
+    ])
 
 
 # =========================
