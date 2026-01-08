@@ -5,15 +5,10 @@
 import pygame
 from typing import Any, Dict
 from agent import MultiSkillAgent, Skill, Slot, send_llama_chat, parse_json_loose
-
 from pathlib import Path
 from typing import Dict
 import pygame
 import time
-import icalendar
-import uuid
-import icalendar
-import uuid
 import imaplib
 import email
 from email.header import decode_header
