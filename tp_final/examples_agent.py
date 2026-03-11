@@ -21,7 +21,7 @@ import uuid
 
 load_dotenv()
 
-uuid = uuid.uuid4()
+uuidee = uuid.uuid4()
 
 BASE_DIR = Path(__file__).resolve().parent
 MUSIC_PATH = BASE_DIR / "music" / "get_back.wav"
@@ -220,13 +220,31 @@ def fetch_recent_emails(username, password, limit=5):
                             content_disposition = str(part.get("Content-Disposition"))
                             
                             if "attachment" not in content_disposition:
+                                payload = part.get_payload(decode=True)
+                                if payload:
+                                    charset = part.get_content_charset() or "utf-8"
+                                    try:
+                                        decoded_payload = payload.decode(charset, errors="replace")
+                                    except (LookupError, AttributeError):
+                                        decoded_payload = payload.decode("utf-8", errors="replace")
+                                else:
+                                    decoded_payload = ""
+
                                 if content_type == "text/plain":
-                                    body = part.get_payload(decode=True).decode()
+                                    body = decoded_payload
                                     break # On préfère le text/plain
                                 elif content_type == "text/html" and not body:
-                                    body = part.get_payload(decode=True).decode()
+                                    body = decoded_payload
                     else:
-                        body = msg.get_payload(decode=True).decode()
+                        payload = msg.get_payload(decode=True)
+                        if payload:
+                            charset = msg.get_content_charset() or "utf-8"
+                            try:
+                                body = payload.decode(charset, errors="replace")
+                            except (LookupError, AttributeError):
+                                body = payload.decode("utf-8", errors="replace")
+                        else:
+                            body = ""
                         
                     emails_data.append({
                         "sender": sender,
